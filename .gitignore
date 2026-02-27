@@ -1,0 +1,59 @@
+# =========================
+# Django & Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# =========================
+# Applymatic Specifics
+# =========================
+# Ignore the local SQLite database
+db.sqlite3
+db.sqlite3-journal
+
+# Ignore user uploads, resumes, and extracted JSON batches!
+media/
+/media/
+
+# Ignore static files collected during deployment
+/staticfiles/
+/static_root/
+
+# =========================
+# Virtual Environments
+# =========================
+# Your local virtual environment (from your traceback)
+/venv/
+venv/
+env/
+.env_venv/
+
+# =========================
+# Secrets & Configuration
+# =========================
+# NEVER commit your .env files containing your Google OAuth Client Secrets!
+secrets.json
+.env
+.env.local
+.env.*
+
+# =========================
+# IDEs & OS Files
+# =========================
+# JetBrains / PyCharm
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
