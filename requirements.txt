@@ -1,50 +1,33 @@
-# ------------------------
-# Core Framework
-# ------------------------
 Django>=5.0,<6.0
 python-dotenv>=1.0.1
 
-# ------------------------
-# Database (use PostgreSQL in production)
-# ------------------------
+# DB
 psycopg2-binary>=2.9.9
+dj-database-url>=2.1.0
 
-# ------------------------
-# PDF Parsing
-# ------------------------
+# Server + static
+gunicorn>=21.2.0
+whitenoise>=6.6.0
+
+# PDF parsing
 pdfplumber>=0.11.0
 PyMuPDF>=1.24.0
 tldextract>=5.1.1
 
-# ------------------------
-# Email Sending (Gmail API OAuth)
-# ------------------------
+# Gmail API OAuth
 google-api-python-client>=2.118.0
 google-auth>=2.29.0
 google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0
 
-# ------------------------
-# Background Tasks
-# ------------------------
+# Background tasks (only if you REALLY use them on Railway)
 celery>=5.3.6
 redis>=5.0.1
 
-# ------------------------
-# File Handling
-# ------------------------
+# File handling
 django-cleanup>=9.0.0
 Pillow>=10.2.0
 
-# ------------------------
 # Utilities
-# ------------------------
 django-widget-tweaks>=1.5.0
 requests>=2.31.0
-
-gunicorn 
-whitenoise 
-dj-database-url 
-psycopg[binary]
-
-dotenv
