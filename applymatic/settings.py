@@ -11,6 +11,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+import dj_database_url
+import os
+from dotenv import load_dotenv
+from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,8 +31,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-secret")
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 
-import os
-import dj_database_url
+
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", ".railway.app").split(",")
 
@@ -58,7 +62,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-import os
 ROOT_URLCONF = 'applymatic.urls'
 template_path = os.path.join(BASE_DIR, 'apps' ,'templates')
 TEMPLATES = [
@@ -139,7 +142,6 @@ LOGIN_REDIRECT_URL = 'core:apply'
 LOGOUT_REDIRECT_URL = 'core:landing'
 
 
-from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 STATIC_URL = "/static/"
@@ -151,15 +153,14 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 
 
-import os
-from dotenv import load_dotenv
+
 load_dotenv()
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 DEBUG = os.getenv("DJANGO_DEBUG") == "True"
 
-import os
-from dotenv import load_dotenv
+
+
 
 load_dotenv()
 
