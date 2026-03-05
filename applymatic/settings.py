@@ -127,3 +127,13 @@ LOGOUT_REDIRECT_URL = 'core:landing'
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+
+
+
+GOOGLE_DRIVE_FOLDER_ID = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "1UF33UO2hyCBj76vvzEZrPUcyg9w3XOwl")
+
+import os
+GOOGLE_APPLICATION_CREDENTIALS = os.environ.get(
+    "GOOGLE_APPLICATION_CREDENTIALS", 
+    "path/to/your/local/drive-bot-key.json" # Change this if testing locally!
+)

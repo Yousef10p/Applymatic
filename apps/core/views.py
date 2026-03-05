@@ -1,4 +1,5 @@
 import os
+import io
 import uuid
 import time
 from django.shortcuts import render, redirect
@@ -7,30 +8,62 @@ from django.core.files.storage import FileSystemStorage
 from django.conf import settings
 
 from .forms import ApplyForm
-from .utils import extract_leads_from_pdf, send_gmail_message, save_campaign_records, get_latest_campaign_path
+from .utils import extract_leads_from_pdf, send_gmail_message, save_campaign_records, get_latest_campaign_path, get_drive_service
+from googleapiclient.http import MediaIoBaseDownload
 
 # ==========================================
 # DEVELOPER TOGGLE
 # ==========================================
 ENABLE_EMAIL_SENDING = True
 
-
 def landing_view(request):
     return render(request, "core/landing.html")
-
 
 def start_guest(request):
     if not request.session.get("applymatic_guest_id"):
         request.session["applymatic_guest_id"] = str(uuid.uuid4())
     return redirect("core:apply")
 
+# --- Google Drive Download Helpers ---
+def get_text_from_drive(service, file_id):
+    """Downloads text files (subject, cover letter) from Drive to memory."""
+    request = service.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    return fh.getvalue().decode('utf-8')
+
+def get_file_from_drive(service, file_id, filename):
+    """Downloads PDFs/Attachments from Drive to memory so they can be emailed."""
+    request = service.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    fh.seek(0)
+    fh.name = filename # Spoof the filename so the email sender knows what to call it
+    return fh
+# --------------------------------------
 
 def apply_view(request):
     is_auth = request.user.is_authenticated
     latest_campaign = get_latest_campaign_path(request.user) if is_auth else None
+    
+    # 1. PRE-FETCH GOOGLE DRIVE FILES (If user has a previous campaign)
+    drive_service = get_drive_service() if (is_auth and latest_campaign) else None
+    drive_files = {} # Dictionary to hold { "resume.pdf": "file_id_123" }
+    
+    if drive_service and latest_campaign:
+        query = f"'{latest_campaign}' in parents and trashed=false"
+        results = drive_service.files().list(q=query, fields="files(id, name)").execute()
+        for f in results.get('files', []):
+            drive_files[f['name']] = f['id']
 
     if request.method == "POST":
-        action = request.POST.get("action") # We will send this from our new JS
+        action = request.POST.get("action")
         form = ApplyForm(request.POST, request.FILES)
 
         if not is_auth:
@@ -53,7 +86,6 @@ def apply_view(request):
 
                 try:
                     leads = extract_leads_from_pdf(file_path)
-                    # Save the leads in the session so we don't have to parse again!
                     request.session['extracted_leads'] = leads 
                     return JsonResponse({"count": len(leads), "leads": leads})
                 except ValueError as e:
@@ -73,22 +105,22 @@ def apply_view(request):
                 resume_pdf = request.FILES.get("resume_pdf")
                 opened_resume = None
 
-                if not resume_pdf and latest_campaign:
-                    for filename in os.listdir(latest_campaign):
-                        if filename.startswith("resume"):
-                            old_resume_path = os.path.join(latest_campaign, filename)
-                            opened_resume = open(old_resume_path, 'rb')
+                # Fetch Resume from Drive if left blank
+                if not resume_pdf and drive_files:
+                    for name, f_id in drive_files.items():
+                        if name.startswith("resume"):
+                            opened_resume = get_file_from_drive(drive_service, f_id, name)
                             resume_pdf = opened_resume
                             break
 
                 extra_attachments = request.FILES.getlist("attachments")
                 opened_attachments = []
 
-                if not extra_attachments and latest_campaign:
-                    for filename in os.listdir(latest_campaign):
-                        if filename.startswith("attachment_"):
-                            att_path = os.path.join(latest_campaign, filename)
-                            opened_attachments.append(open(att_path, 'rb'))
+                # Fetch Attachments from Drive if left blank
+                if not extra_attachments and drive_files:
+                    for name, f_id in drive_files.items():
+                        if name.startswith("attachment_"):
+                            opened_attachments.append(get_file_from_drive(drive_service, f_id, name))
                     extra_attachments = opened_attachments
 
                 cover_letter = form.cleaned_data.get("cover_letter")
@@ -130,25 +162,22 @@ def apply_view(request):
 
         return JsonResponse({"error": "Form validation failed."}, status=400)
 
-    # GET REQUEST handling remains exactly the same
+    # ==========================================
+    # GET REQUEST: Auto-fill from Google Drive
+    # ==========================================
     initial_data = {}
     previous_resume_name = None
     previous_attachments_count = 0
 
-    if latest_campaign:
-        cl_path = os.path.join(latest_campaign, "coverletter.txt")
-        if os.path.exists(cl_path):
-            with open(cl_path, "r", encoding="utf-8") as f:
-                initial_data['cover_letter'] = f.read()
+    if drive_files:
+        if 'coverletter.txt' in drive_files:
+            initial_data['cover_letter'] = get_text_from_drive(drive_service, drive_files['coverletter.txt'])
+        if 'subject.txt' in drive_files:
+            initial_data['subject'] = get_text_from_drive(drive_service, drive_files['subject.txt'])
 
-        subj_path = os.path.join(latest_campaign, "subject.txt")
-        if os.path.exists(subj_path):
-            with open(subj_path, "r", encoding="utf-8") as f:
-                initial_data['subject'] = f.read()
-
-        for filename in os.listdir(latest_campaign):
-            if filename.startswith("resume"): previous_resume_name = filename
-            elif filename.startswith("attachment_"): previous_attachments_count += 1
+        for name in drive_files.keys():
+            if name.startswith("resume"): previous_resume_name = name
+            elif name.startswith("attachment_"): previous_attachments_count += 1
 
     form = ApplyForm(initial=initial_data)
 
