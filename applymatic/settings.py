@@ -132,8 +132,8 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
 
 GOOGLE_DRIVE_FOLDER_ID = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "1UF33UO2hyCBj76vvzEZrPUcyg9w3XOwl")
 
-import os
-GOOGLE_APPLICATION_CREDENTIALS = os.environ.get(
-    "GOOGLE_APPLICATION_CREDENTIALS", 
-    "path/to/your/local/drive-bot-key.json" # Change this if testing locally!
+# This points to your new human token!
+GOOGLE_DRIVE_TOKEN_PATH = os.environ.get(
+    "GOOGLE_DRIVE_TOKEN_PATH", 
+    os.path.join(BASE_DIR, "token.json") # Looks in your project folder locally
 )

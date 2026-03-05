@@ -10,10 +10,9 @@ import base64
 import mimetypes
 
 # Google API Imports
-from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
-
+from google.oauth2.credentials import Credentials
 # ==========================================
 # 1. Extraction & Email Utils (Unchanged)
 # ==========================================
@@ -83,10 +82,15 @@ def send_gmail_message(credentials, sender_email, to_email, subject, body_text, 
 # 2. Google Drive Storage Utils
 # ==========================================
 
+# REMOVE the old robot import:
+# from google.oauth2 import service_account
+
+# ADD the new human import:
+
 def get_drive_service():
-    """Initializes the connection to the Google Drive bot."""
-    creds = service_account.Credentials.from_service_account_file(
-        settings.GOOGLE_APPLICATION_CREDENTIALS, 
+    """Initializes the connection using your human token."""
+    creds = Credentials.from_authorized_user_file(
+        settings.GOOGLE_DRIVE_TOKEN_PATH, 
         scopes=['https://www.googleapis.com/auth/drive']
     )
     return build('drive', 'v3', credentials=creds)
@@ -207,3 +211,5 @@ def get_latest_campaign_path(user):
             continue
 
     return latest_id
+
+
