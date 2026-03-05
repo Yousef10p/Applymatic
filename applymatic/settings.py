@@ -24,7 +24,7 @@ DEBUG = os.getenv("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", ".railway.app,localhost,127.0.0.1").split(",")
 
 # Trust Railway's domains for form submissions
-CSRF_TRUSTED_ORIGINS = ['https://*.up.railway.app', 'https://*.railway.app']
+CSRF_TRUSTED_ORIGINS = ['https://*.up.railway.app', 'https://*.railway.app', 'https://*.onrender.com']
 
 # ==========================================
 # Application definition
