@@ -130,6 +130,12 @@
         let extractRes = await fetch(window.location.href, {
             method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}
         });
+        
+        // --- NEW SAFETY CHECK 1 ---
+        if (!extractRes.ok) {
+            throw new Error(`Django crashed during PDF Extraction! Status: ${extractRes.status}. Please check Render Logs.`);
+        }
+        
         let extractData = await extractRes.json();
 
         if (extractData.error) throw new Error(extractData.error);
@@ -153,6 +159,12 @@
             let sendRes = await fetch(window.location.href, {
                 method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}
             });
+            
+            // --- NEW SAFETY CHECK 2 ---
+            if (!sendRes.ok) {
+                throw new Error(`Django crashed while uploading to Drive or sending emails! Status: ${sendRes.status}. Please check Render Logs.`);
+            }
+
             let sendData = await sendRes.json();
 
             if (sendData.error) throw new Error(sendData.error);
@@ -165,7 +177,8 @@
 
       } catch (err) {
           console.error(err);
-          alert("Error: " + err.message);
+          // This will now show a clean alert with the exact step that failed
+          alert(err.message);
           window.location.reload();
       }
     });
