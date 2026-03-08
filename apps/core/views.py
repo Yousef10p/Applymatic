@@ -7,7 +7,7 @@ from django.core.files.storage import FileSystemStorage
 from django.conf import settings
 
 from .forms import ApplyForm
-from .utils import extract_leads, send_gmail_message, save_campaign_records, get_latest_campaign_path, get_drive_service
+from .utils import extract_leads, send_gmail_message, save_campaign_records, get_latest_campaign_path, get_drive_service, extract_text_from_document
 from googleapiclient.http import MediaIoBaseDownload
 
 ENABLE_EMAIL_SENDING = True
@@ -54,6 +54,66 @@ def apply_view(request):
 
     if request.method == "POST":
         action = request.POST.get("action")
+        
+        # ==========================================
+        # AI INTERCEPTORS (Bypasses Form Validation)
+        # ==========================================
+        if action == "generate_cover_letter":
+            resume_pdf = request.FILES.get("resume_pdf")
+            file_path = None
+            fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'temp'))
+            
+            try:
+                # 1. Prioritize newly uploaded resume
+                if resume_pdf:
+                    filename = fs.save(resume_pdf.name, resume_pdf)
+                    file_path = fs.path(filename)
+                    
+                # 2. Fallback to Drive resume
+                elif drive_files:
+                    for name, f_id in drive_files.items():
+                        if name.startswith("resume"):
+                            opened_resume = get_file_from_drive(drive_service, f_id, name)
+                            filename = fs.get_available_name(name)
+                            file_path = fs.path(filename)
+                            with open(file_path, 'wb') as f:
+                                f.write(opened_resume.getvalue())
+                            opened_resume.close()
+                            break
+                            
+                if not file_path:
+                    return JsonResponse({"error": "No resume uploaded, and no previous resume found in your Google Drive."}, status=400)
+                    
+                # Extract text and send to AI
+                resume_text = extract_text_from_document(file_path)
+                from apps.AI.main import ApplymaticAI
+                ai = ApplymaticAI()
+                generated_text = ai.generate_cover_letter(resume_text)
+                
+                return JsonResponse({"status": "success", "cover_letter": generated_text})
+                
+            except Exception as e:
+                return JsonResponse({"error": str(e)}, status=400)
+            finally:
+                if file_path and os.path.exists(file_path):
+                    os.remove(file_path)
+                    
+        elif action == "refine_cover_letter":
+            current_text = request.POST.get("current_cover_letter", "").strip()
+            if not current_text:
+                return JsonResponse({"error": "Your cover letter is empty! Please write something or generate one first."}, status=400)
+                
+            try:
+                from apps.AI.main import ApplymaticAI
+                ai = ApplymaticAI()
+                refined_text = ai.refine_cover_letter(current_text)
+                return JsonResponse({"status": "success", "cover_letter": refined_text})
+            except Exception as e:
+                return JsonResponse({"error": str(e)}, status=400)
+
+        # ==========================================
+        # STANDARD FORM ACTIONS (Extract & Send)
+        # ==========================================
         form = ApplyForm(request.POST, request.FILES)
 
         if latest_campaign:

@@ -28,8 +28,47 @@
           <form id="apply-form" enctype="multipart/form-data">
             {% csrf_token %}
             <div id="form-fields-container" class="bg-body-tertiary p-4 rounded mb-4 border shadow-sm">
-              {{ form.as_p }}
+              
+              <p>
+                {{ form.companies_file.label_tag }}
+                {{ form.companies_file }}
+                {% if form.companies_file.help_text %}<span class="helptext">{{ form.companies_file.help_text }}</span>{% endif %}
+                {{ form.companies_file.errors }}
+              </p>
+              <p>
+                {{ form.manual_leads_text.label_tag }}
+                {{ form.manual_leads_text }}
+                {{ form.manual_leads_text.errors }}
+              </p>
+
+              <hr class="my-4 border-secondary opacity-25">
+
+              <p>
+                {{ form.resume_pdf.label_tag }}
+                {{ form.resume_pdf }}
+                {{ form.resume_pdf.errors }}
+              </p>
+
+              <p>
+                {{ form.subject.label_tag }}
+                {{ form.subject }}
+                {{ form.subject.errors }}
+              </p>
+
+              <p>
+                {{ form.cover_letter.label_tag }}
+                {{ form.cover_letter }}
+                {{ form.cover_letter.errors }}
+              </p>
+
+              <p>
+                {{ form.attachments.label_tag }}
+                {{ form.attachments }}
+                {{ form.attachments.errors }}
+              </p>
+
             </div>
+            
             <div class="d-grid">
               <button id="submit-btn" type="submit" class="btn btn-primary btn-lg fw-bold">
                 Extract Leads & Send Campaign
@@ -49,6 +88,20 @@
             <button onclick="window.location.href='/'" class="btn btn-primary mt-3">Return Home</button>
           </div>
 
+          <div class="modal fade glass-modal" id="aiErrorModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content shadow-lg border-danger">
+                <div class="modal-header border-0">
+                  <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>AI Assistant Error</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pb-4">
+                  <p id="ai-error-message" class="text-body mb-0"></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -56,6 +109,76 @@
 </div>
 
 <script>
+  // ==========================================
+  // AI BUTTON INJECTION & LOGIC
+  // ==========================================
+  document.addEventListener("DOMContentLoaded", function() {
+      const coverLetterField = document.getElementById("id_cover_letter");
+      
+      if (coverLetterField) {
+          const aiToolbar = document.createElement("div");
+          aiToolbar.className = "d-flex gap-2 mb-2 align-items-center";
+          aiToolbar.innerHTML = `
+              <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm" id="btn-generate-ai">
+                  <i class="bi bi-magic me-1"></i> Generate from Resume
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-success fw-bold shadow-sm" id="btn-refine-ai">
+                  <i class="bi bi-stars me-1"></i> Refine Text
+              </button>
+              <span id="ai-loading" class="spinner-border spinner-border-sm text-primary d-none" role="status"></span>
+          `;
+          coverLetterField.parentNode.insertBefore(aiToolbar, coverLetterField);
+
+          document.getElementById("btn-generate-ai").addEventListener("click", () => triggerAI('generate_cover_letter'));
+          document.getElementById("btn-refine-ai").addEventListener("click", () => triggerAI('refine_cover_letter'));
+      }
+  });
+
+  async function triggerAI(actionType) {
+      const btnGen = document.getElementById("btn-generate-ai");
+      const btnRef = document.getElementById("btn-refine-ai");
+      const loader = document.getElementById("ai-loading");
+      
+      btnGen.disabled = true;
+      btnRef.disabled = true;
+      loader.classList.remove("d-none");
+
+      try {
+          let formData = new FormData(document.getElementById('apply-form'));
+          formData.append('action', actionType);
+          
+          if (actionType === 'refine_cover_letter') {
+              formData.append('current_cover_letter', document.getElementById("id_cover_letter").value);
+          }
+
+          let res = await fetch(window.location.href, {
+              method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}
+          });
+          
+          let data = await res.json();
+          if (!res.ok || data.error) {
+              showAIError(data.error || `AI Error! Status: ${res.status}`);
+          } else {
+              document.getElementById("id_cover_letter").value = data.cover_letter;
+          }
+      } catch (err) {
+          showAIError("A network error occurred while contacting the AI.");
+      } finally {
+          btnGen.disabled = false;
+          btnRef.disabled = false;
+          loader.classList.add("d-none");
+      }
+  }
+
+  function showAIError(message) {
+      document.getElementById("ai-error-message").innerText = message;
+      const errorModal = new bootstrap.Modal(document.getElementById('aiErrorModal'));
+      errorModal.show();
+  }
+
+  // ==========================================
+  // STANDARD FORM SUBMISSION (Extract & Send)
+  // ==========================================
   document.getElementById('apply-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const form = e.target;
@@ -105,8 +228,8 @@
       document.getElementById('success-text').innerHTML = `Successfully dispatched <strong>${sendData.sent_count}</strong> personalized emails.`;
 
     } catch (err) {
-        alert(err.message);
-        window.location.reload();
+        showAIError(err.message);
+        setTimeout(() => { window.location.reload(); }, 3500);
     }
   });
 </script>
