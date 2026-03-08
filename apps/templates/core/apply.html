@@ -31,12 +31,15 @@
               
               <p>
                 {{ form.companies_file.label_tag }}
+                <i class="bi bi-question-circle ms-1 text-primary" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#uploadLeadsInfoModal" title="How does this work?"></i>
                 {{ form.companies_file }}
                 {% if form.companies_file.help_text %}<span class="helptext">{{ form.companies_file.help_text }}</span>{% endif %}
                 {{ form.companies_file.errors }}
               </p>
+              
               <p>
                 {{ form.manual_leads_text.label_tag }}
+                <i class="bi bi-question-circle ms-1 text-primary" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#manualTextInfoModal" title="How does this work?"></i>
                 {{ form.manual_leads_text }}
                 {{ form.manual_leads_text.errors }}
               </p>
@@ -45,6 +48,7 @@
 
               <p>
                 {{ form.resume_pdf.label_tag }}
+                <i class="bi bi-question-circle ms-1 text-primary" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#resumeInfoModal" title="How does this work?"></i>
                 {{ form.resume_pdf }}
                 {{ form.resume_pdf.errors }}
               </p>
@@ -63,6 +67,7 @@
 
               <p>
                 {{ form.attachments.label_tag }}
+                <i class="bi bi-question-circle ms-1 text-primary" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#attachmentsInfoModal" title="How does this work?"></i>
                 {{ form.attachments }}
                 {{ form.attachments.errors }}
               </p>
@@ -102,6 +107,81 @@
             </div>
           </div>
 
+          <div class="modal fade glass-modal" id="companyInfoModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content shadow-lg">
+                <div class="modal-header border-0">
+                  <h5 class="modal-title fw-bold text-primary"><i class="bi bi-info-circle-fill me-2"></i>Dynamic Placeholders</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pb-4 text-body">
+                  When enabled, the AI will use the exact text <strong class="text-primary">{company_name}</strong> in your cover letter.<br><br>
+                  During the sending phase, Applymatic will automatically replace this placeholder with the actual name of the company for each individual email!
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal fade glass-modal" id="manualTextInfoModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content shadow-lg">
+                <div class="modal-header border-0">
+                  <h5 class="modal-title fw-bold text-primary"><i class="bi bi-input-cursor-text me-2"></i>Manual Text Entry</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pb-4 text-body">
+                  Don't have a file to upload? No problem!<br><br>
+                  You can simply copy and paste a block of raw text from a website, LinkedIn page, or email thread directly into this box. Applymatic's engine will automatically scan through the text, find any hidden email addresses, and add them to your campaign list.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal fade glass-modal" id="uploadLeadsInfoModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content shadow-lg">
+                <div class="modal-header border-0">
+                  <h5 class="modal-title fw-bold text-primary"><i class="bi bi-file-earmark-arrow-up me-2"></i>Upload Leads File</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pb-4 text-body">
+                  Upload a document containing the email addresses you want to target.<br><br>
+                  Applymatic's smart extractor supports <strong>PDF, Word (.docx), Excel (.xlsx), CSV, and TXT</strong> files. It will automatically scan the entire document, find valid email addresses, and figure out the target company name based on the email domain!
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal fade glass-modal" id="resumeInfoModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content shadow-lg">
+                <div class="modal-header border-0">
+                  <h5 class="modal-title fw-bold text-primary"><i class="bi bi-file-earmark-person me-2"></i>Resume Upload</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pb-4 text-body">
+                  Upload your latest resume in PDF format.<br><br>
+                  This file will be automatically attached to every email sent in this campaign. Our AI can uses it to refine and write your custom cover letter.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal fade glass-modal" id="attachmentsInfoModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content shadow-lg">
+                <div class="modal-header border-0">
+                  <h5 class="modal-title fw-bold text-primary"><i class="bi bi-paperclip me-2"></i>Extra Attachments</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pb-4 text-body">
+                  Need to include a portfolio, writing sample, or certification?<br><br>
+                  You can select multiple files here. Just like your resume, these will be securely attached to every email in your campaign.
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -126,9 +206,10 @@
                   <i class="bi bi-stars me-1"></i> Refine Text
               </button>
               
-              <div class="form-check form-switch ms-2 mb-0">
-                  <input class="form-check-input" type="checkbox" role="switch" id="include-company-switch" checked>
-                  <label class="form-check-label small text-secondary fw-bold" for="include-company-switch">Include {company_name}</label>
+              <div class="form-check form-switch ms-2 mb-0 d-flex align-items-center">
+                  <input class="form-check-input mt-0 me-2" type="checkbox" role="switch" id="include-company-switch" checked>
+                  <label class="form-check-label small text-secondary fw-bold" for="include-company-switch">Include company name</label>
+                  <i class="bi bi-question-circle ms-2 text-primary" style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#companyInfoModal" title="How does this work?"></i>
               </div>
 
               <span id="ai-loading" class="spinner-border spinner-border-sm text-primary d-none ms-auto" role="status"></span>
@@ -153,7 +234,6 @@
           let formData = new FormData(document.getElementById('apply-form'));
           formData.append('action', actionType);
           
-          // Grab the state of the toggle switch!
           const includeCompany = document.getElementById("include-company-switch").checked;
           formData.append('include_company', includeCompany);
           
@@ -204,7 +284,6 @@
     loadingOverlay.classList.remove('d-none');
 
     try {
-      // STEP 1: Extract
       let formData = new FormData(form);
       formData.append('action', 'extract');
       let extractRes = await fetch(window.location.href, {
@@ -221,7 +300,6 @@
       loadingTitle.innerHTML = `Found <span class="text-success">${leadCount}</span> emails!`;
       loadingText.innerHTML = "Currently formatting and sending via Gmail API.<br><strong>Please do not close this window.</strong>";
 
-      // STEP 2: Send
       formData.set('action', 'send');
       let sendRes = await fetch(window.location.href, {
           method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}

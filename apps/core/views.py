@@ -80,7 +80,7 @@ def apply_view(request):
                                 break
                                 
                     if not file_path:
-                        return JsonResponse({"error": "No resume uploaded, and no previous resume found in your Google Drive."}, status=400)
+                        return JsonResponse({"error": "No resume uploaded. No Cover Letter is written"}, status=400)
                         
                     resume_text = extract_text_from_document(file_path)
                     from apps.AI.main import ApplymaticAI
