@@ -13,20 +13,50 @@ import mimetypes
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 from google.oauth2.credentials import Credentials
+
 # ==========================================
-# 1. Extraction & Email Utils (Unchanged)
+# 1. Extraction & Email Utils
 # ==========================================
 
-def extract_leads_from_pdf(file_path):
+def extract_text_from_document(file_path):
+    """Dynamically parses text based on file extension."""
+    ext = os.path.splitext(file_path)[1].lower()
     raw_text = ""
     try:
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    raw_text += text + "\n"
+        if ext == '.pdf':
+            with pdfplumber.open(file_path) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text: raw_text += text + "\n"
+        elif ext in ['.txt', '.csv']:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                raw_text = f.read()
+        elif ext in ['.doc', '.docx']:
+            import docx
+            doc = docx.Document(file_path)
+            raw_text = "\n".join([para.text for para in doc.paragraphs])
+        elif ext in ['.xls', '.xlsx']:
+            if ext == '.xls':
+                raise ValueError("Applymatic requires the modern .xlsx Excel format. Please open your .xls file, click 'Save As', choose '.xlsx', and try again!")
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            for sheet in wb.worksheets:
+                for row in sheet.iter_rows(values_only=True):
+                    row_text = " ".join([str(cell) for cell in row if cell is not None])
+                    raw_text += row_text + "\n"
+        else:
+            raise ValueError("Unsupported file format.")
     except Exception as e:
-        raise ValueError(f"Failed to parse PDF: {str(e)}")
+        raise ValueError(f"Failed to parse file: {str(e)}")
+    
+    return raw_text
+
+def extract_leads(file_path=None, manual_text=""):
+    """Combines text from file and manual input, then extracts emails."""
+    raw_text = manual_text + "\n"
+    
+    if file_path and os.path.exists(file_path):
+        raw_text += extract_text_from_document(file_path)
 
     EMAIL_RE = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     raw_emails = list(set(re.findall(EMAIL_RE, raw_text)))
@@ -82,11 +112,6 @@ def send_gmail_message(credentials, sender_email, to_email, subject, body_text, 
 # 2. Google Drive Storage Utils
 # ==========================================
 
-# REMOVE the old robot import:
-# from google.oauth2 import service_account
-
-# ADD the new human import:
-
 def get_drive_service():
     """Initializes the connection using your human token."""
     creds = Credentials.from_authorized_user_file(
@@ -113,23 +138,24 @@ def get_file_hash(file_obj):
     file_obj.seek(0)
     return hasher.hexdigest()
 
-def save_campaign_records(user, companies_pdf, cover_letter_text, resume_pdf, attachments, subject):
+def save_campaign_records(user, companies_file, cover_letter_text, resume_pdf, attachments, subject):
     service = get_drive_service()
     master_folder_id = settings.GOOGLE_DRIVE_FOLDER_ID # You must add this to settings.py!
 
     # 1. Save Companies File (Check if hash already exists in Drive)
-    companies_folder_id = get_or_create_drive_folder(service, 'companies', master_folder_id)
-    comp_hash = get_file_hash(companies_pdf)
-    comp_ext = os.path.splitext(companies_pdf.name)[1]
-    comp_filename = f"{comp_hash}{comp_ext}"
+    if companies_file:
+        companies_folder_id = get_or_create_drive_folder(service, 'companies', master_folder_id)
+        comp_hash = get_file_hash(companies_file)
+        comp_ext = os.path.splitext(companies_file.name)[1]
+        comp_filename = f"{comp_hash}{comp_ext}"
 
-    query = f"name='{comp_filename}' and '{companies_folder_id}' in parents and trashed=false"
-    existing_comp = service.files().list(q=query, fields='files(id)').execute().get('files', [])
-    
-    if not existing_comp:
-        companies_pdf.seek(0)
-        media = MediaIoBaseUpload(companies_pdf, mimetype='application/pdf', resumable=True)
-        service.files().create(body={'name': comp_filename, 'parents': [companies_folder_id]}, media_body=media).execute()
+        query = f"name='{comp_filename}' and '{companies_folder_id}' in parents and trashed=false"
+        existing_comp = service.files().list(q=query, fields='files(id)').execute().get('files', [])
+        
+        if not existing_comp:
+            companies_file.seek(0)
+            media = MediaIoBaseUpload(companies_file, mimetype='application/octet-stream', resumable=False)
+            service.files().create(body={'name': comp_filename, 'parents': [companies_folder_id]}, media_body=media).execute()
 
     # 2. Setup User's Base Folder Name
     campaigns_folder_id = get_or_create_drive_folder(service, 'campaigns', master_folder_id)
@@ -155,14 +181,14 @@ def save_campaign_records(user, companies_pdf, cover_letter_text, resume_pdf, at
     def upload_text(filename, content):
         if not content: return
         file_obj = io.BytesIO(content.encode('utf-8'))
-        media = MediaIoBaseUpload(file_obj, mimetype='text/plain', resumable=True)
+        media = MediaIoBaseUpload(file_obj, mimetype='text/plain', resumable=False)
         service.files().create(body={'name': filename, 'parents': [target_campaign_id]}, media_body=media).execute()
 
     def upload_media(filename, file_obj):
         if not file_obj or not getattr(file_obj, 'name', None): return
         file_obj.seek(0)
         ctype, _ = mimetypes.guess_type(file_obj.name)
-        media = MediaIoBaseUpload(file_obj, mimetype=ctype or 'application/octet-stream', resumable=True)
+        media = MediaIoBaseUpload(file_obj, mimetype=ctype or 'application/octet-stream', resumable=False)
         service.files().create(body={'name': filename, 'parents': [target_campaign_id]}, media_body=media).execute()
 
     upload_text('subject.txt', subject)
@@ -211,5 +237,3 @@ def get_latest_campaign_path(user):
             continue
 
     return latest_id
-
-

@@ -1,6 +1,5 @@
 import os
 import io
-import uuid
 import time
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
@@ -8,53 +7,44 @@ from django.core.files.storage import FileSystemStorage
 from django.conf import settings
 
 from .forms import ApplyForm
-from .utils import extract_leads_from_pdf, send_gmail_message, save_campaign_records, get_latest_campaign_path, get_drive_service
+from .utils import extract_leads, send_gmail_message, save_campaign_records, get_latest_campaign_path, get_drive_service
 from googleapiclient.http import MediaIoBaseDownload
 
-# ==========================================
-# DEVELOPER TOGGLE
-# ==========================================
 ENABLE_EMAIL_SENDING = True
 
 def landing_view(request):
     return render(request, "core/landing.html")
 
-def start_guest(request):
-    if not request.session.get("applymatic_guest_id"):
-        request.session["applymatic_guest_id"] = str(uuid.uuid4())
-    return redirect("core:apply")
-
 # --- Google Drive Download Helpers ---
 def get_text_from_drive(service, file_id):
-    """Downloads text files (subject, cover letter) from Drive to memory."""
     request = service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
-    while not done:
-        _, done = downloader.next_chunk()
+    while not done: _, done = downloader.next_chunk()
     return fh.getvalue().decode('utf-8')
 
 def get_file_from_drive(service, file_id, filename):
-    """Downloads PDFs/Attachments from Drive to memory so they can be emailed."""
     request = service.files().get_media(fileId=file_id)
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
-    while not done:
-        _, done = downloader.next_chunk()
+    while not done: _, done = downloader.next_chunk()
     fh.seek(0)
-    fh.name = filename # Spoof the filename so the email sender knows what to call it
+    fh.name = filename 
     return fh
 # --------------------------------------
 
+# ==========================================
+# VIEW 1: AUTHENTICATED CAMPAIGN MANAGER
+# ==========================================
 def apply_view(request):
-    is_auth = request.user.is_authenticated
-    latest_campaign = get_latest_campaign_path(request.user) if is_auth else None
-    
-    # 1. PRE-FETCH GOOGLE DRIVE FILES (If user has a previous campaign)
-    drive_service = get_drive_service() if (is_auth and latest_campaign) else None
-    drive_files = {} # Dictionary to hold { "resume.pdf": "file_id_123" }
+    if not request.user.is_authenticated:
+        return redirect("core:landing")
+
+    latest_campaign = get_latest_campaign_path(request.user)
+    drive_service = get_drive_service() if latest_campaign else None
+    drive_files = {} 
     
     if drive_service and latest_campaign:
         query = f"'{latest_campaign}' in parents and trashed=false"
@@ -66,38 +56,36 @@ def apply_view(request):
         action = request.POST.get("action")
         form = ApplyForm(request.POST, request.FILES)
 
-        if not is_auth:
-            form.fields['resume_pdf'].required = False
-            form.fields['subject'].required = False
-            form.fields['cover_letter'].required = False
-            form.fields['attachments'].required = False
-        elif latest_campaign:
+        if latest_campaign:
             form.fields['resume_pdf'].required = False
 
         if form.is_valid():
-            # ==========================================
-            # ACTION 1: EXTRACT ONLY (Guest & Auth)
-            # ==========================================
+            # ACTION 1: EXTRACT
             if action == "extract":
-                companies_pdf = request.FILES.get("companies_pdf")
-                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'temp'))
-                filename = fs.save(companies_pdf.name, companies_pdf)
-                file_path = fs.path(filename)
+                companies_file = request.FILES.get("companies_file")
+                manual_text = form.cleaned_data.get("manual_leads_text", "")
+                
+                file_path = None
+                if companies_file:
+                    fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'temp'))
+                    filename = fs.save(companies_file.name, companies_file)
+                    file_path = fs.path(filename)
 
                 try:
-                    leads = extract_leads_from_pdf(file_path)
+                    leads = extract_leads(file_path=file_path, manual_text=manual_text)
+                    if not leads:
+                        return JsonResponse({"error": "Could not find any valid email addresses in the provided file/text."}, status=400)
+                    
                     request.session['extracted_leads'] = leads 
                     return JsonResponse({"count": len(leads), "leads": leads})
                 except ValueError as e:
                     return JsonResponse({"error": str(e)}, status=400)
                 finally:
-                    if os.path.exists(file_path):
+                    if file_path and os.path.exists(file_path):
                         os.remove(file_path)
 
-            # ==========================================
-            # ACTION 2: SEND EMAILS (Auth Only)
-            # ==========================================
-            elif action == "send" and is_auth:
+            # ACTION 2: SEND EMAILS
+            elif action == "send":
                 leads = request.session.get('extracted_leads', [])
                 if not leads:
                     return JsonResponse({"error": "No leads found to send."}, status=400)
@@ -105,7 +93,6 @@ def apply_view(request):
                 resume_pdf = request.FILES.get("resume_pdf")
                 opened_resume = None
 
-                # Fetch Resume from Drive if left blank
                 if not resume_pdf and drive_files:
                     for name, f_id in drive_files.items():
                         if name.startswith("resume"):
@@ -116,7 +103,6 @@ def apply_view(request):
                 extra_attachments = request.FILES.getlist("attachments")
                 opened_attachments = []
 
-                # Fetch Attachments from Drive if left blank
                 if not extra_attachments and drive_files:
                     for name, f_id in drive_files.items():
                         if name.startswith("attachment_"):
@@ -125,9 +111,10 @@ def apply_view(request):
 
                 cover_letter = form.cleaned_data.get("cover_letter")
                 subject = form.cleaned_data.get("subject")
+                companies_file = request.FILES.get("companies_file")
 
                 save_campaign_records(
-                    user=request.user, companies_pdf=request.FILES.get("companies_pdf"),
+                    user=request.user, companies_file=companies_file,
                     cover_letter_text=cover_letter, resume_pdf=resume_pdf,
                     attachments=extra_attachments, subject=subject
                 )
@@ -150,11 +137,7 @@ def apply_view(request):
                         )
                         sent_count += 1
                         time.sleep(1)
-                    else:
-                        print(f"[TEST MODE] Sent to: {lead['email']}")
-                        sent_count += 1
 
-                # Cleanup
                 if opened_resume: opened_resume.close()
                 for att in opened_attachments: att.close()
 
@@ -162,9 +145,7 @@ def apply_view(request):
 
         return JsonResponse({"error": "Form validation failed."}, status=400)
 
-    # ==========================================
-    # GET REQUEST: Auto-fill from Google Drive
-    # ==========================================
+    # GET REQUEST
     initial_data = {}
     previous_resume_name = None
     previous_attachments_count = 0
@@ -174,22 +155,58 @@ def apply_view(request):
             initial_data['cover_letter'] = get_text_from_drive(drive_service, drive_files['coverletter.txt'])
         if 'subject.txt' in drive_files:
             initial_data['subject'] = get_text_from_drive(drive_service, drive_files['subject.txt'])
-
         for name in drive_files.keys():
             if name.startswith("resume"): previous_resume_name = name
             elif name.startswith("attachment_"): previous_attachments_count += 1
 
     form = ApplyForm(initial=initial_data)
-
-    if not is_auth:
-        form.fields['resume_pdf'].required = False
-        form.fields['subject'].required = False
-        form.fields['cover_letter'].required = False
-        form.fields['attachments'].required = False
-    elif latest_campaign:
-        form.fields['resume_pdf'].required = False
+    if latest_campaign: form.fields['resume_pdf'].required = False
 
     return render(request, "core/apply.html", {
         "form": form, "has_previous_campaign": bool(latest_campaign),
         "previous_resume_name": previous_resume_name, "previous_attachments_count": previous_attachments_count
     })
+
+# ==========================================
+# VIEW 2: GUEST EXTRACTION TESTER
+# ==========================================
+def guest_extract_view(request):
+    if request.method == "POST":
+        form = ApplyForm(request.POST, request.FILES)
+        
+        # Turn off all email requirements for testing
+        form.fields['resume_pdf'].required = False
+        form.fields['subject'].required = False
+        form.fields['cover_letter'].required = False
+
+        if form.is_valid():
+            companies_file = request.FILES.get("companies_file")
+            manual_text = form.cleaned_data.get("manual_leads_text", "")
+            
+            file_path = None
+            if companies_file:
+                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'temp'))
+                filename = fs.save(companies_file.name, companies_file)
+                file_path = fs.path(filename)
+
+            try:
+                leads = extract_leads(file_path=file_path, manual_text=manual_text)
+                if not leads:
+                    return JsonResponse({"error": "Could not find any valid email addresses in the provided file/text."}, status=400)
+                
+                return JsonResponse({"count": len(leads), "leads": leads})
+            except ValueError as e:
+                return JsonResponse({"error": str(e)}, status=400)
+            finally:
+                if file_path and os.path.exists(file_path):
+                    os.remove(file_path)
+
+        return JsonResponse({"error": "Form validation failed."}, status=400)
+
+    # GET REQUEST
+    form = ApplyForm()
+    form.fields['resume_pdf'].required = False
+    form.fields['subject'].required = False
+    form.fields['cover_letter'].required = False
+
+    return render(request, "core/guest_extract.html", {"form": form})

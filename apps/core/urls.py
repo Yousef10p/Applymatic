@@ -1,10 +1,10 @@
 from django.urls import path
-from .views import landing_view, start_guest, apply_view
+from . import views
 
 app_name = "core"
 
 urlpatterns = [
-    path("", landing_view, name="landing"),
-    path("guest/start/", start_guest, name="start_guest"),
-    path("apply/", apply_view, name="apply"),
+    path("", views.landing_view, name="landing"),
+    path("apply/", views.apply_view, name="apply"),
+    path("guest/test/", views.guest_extract_view, name="guest_extract"), # The new dedicated guest URL
 ]

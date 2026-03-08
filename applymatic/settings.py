@@ -14,17 +14,60 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ==========================================
-# Core Settings
+# MASTER DEPLOYMENT TOGGLE
 # ==========================================
-# Grabs the exact Railway variable names
-SECRET_KEY = os.getenv("SECRET_KEY", "unsafe-secret-key-for-local-dev-only")
+# Automatically checks your .env or Railway variables. 
+# If "Production=True", it locks down the app for live deployment.
+PRODUCTION = os.environ.get("Production", "False").lower() == "true"
 
-DEBUG = os.getenv("DEBUG", "False") == "True"
+# ==========================================
+# Core & Environment Settings
+# ==========================================
+if PRODUCTION:
+    # --- RAILWAY PRODUCTION SETTINGS ---
+    SECRET_KEY = os.environ.get("SECRET_KEY", os.environ.get("DJANGO_SECRET_KEY"))
+    DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
+    
+    ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", ".railway.app").split(",")
+    CSRF_TRUSTED_ORIGINS = ['https://*.up.railway.app', 'https://*.railway.app']
+    
+    # Strictly use the Railway Postgres Database URL
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=os.environ.get("DATABASE_URL"),
+            conn_max_age=600,
+            ssl_require=True 
+        )
+    }
+    
+    # Use Railway's live URL for Google Login
+    GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI")
+    
+    # Force Linux /tmp path for Railway deployment
+    GOOGLE_DRIVE_TOKEN_PATH = os.environ.get("GOOGLE_DRIVE_TOKEN_PATH", "/tmp/token.json")
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", ".railway.app,localhost,127.0.0.1").split(",")
+else:
+    # --- LOCAL COMPUTER SETTINGS ---
+    SECRET_KEY = os.environ.get("SECRET_KEY", "unsafe-secret-key-for-local-dev-only")
+    DEBUG = True
+    
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+    CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
+    
+    # Strictly use the local db.sqlite3 file
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+    
+    # Automatically force local URL for Google Login
+    GOOGLE_REDIRECT_URI = "http://127.0.0.1:8000/accounts/google/login/callback/"
+    
+    # Force local Windows path (Ignores the /tmp/ path in your .env!)
+    GOOGLE_DRIVE_TOKEN_PATH = os.path.join(BASE_DIR, "token.json")
 
-# Trust Railway's domains for form submissions
-CSRF_TRUSTED_ORIGINS = ['https://*.up.railway.app', 'https://*.railway.app', 'https://*.onrender.com']
 
 # ==========================================
 # Application definition
@@ -76,18 +119,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'applymatic.wsgi.application'
 
 # ==========================================
-# Database Setup
-# ==========================================
-# Uses Railway's DATABASE_URL if available, otherwise falls back to local SQLite
-DATABASES = {
-    "default": dj_database_url.config(
-        default=os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
-        conn_max_age=600,
-        ssl_require=os.getenv("DATABASE_URL") is not None # Only require SSL if using Railway Postgres
-    )
-}
-
-# ==========================================
 # Password validation
 # ==========================================
 AUTH_PASSWORD_VALIDATORS = [
@@ -112,8 +143,7 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
-# Changed this to safely fall back to a local folder if you don't have a /data/ volume mounted in Railway
-MEDIA_ROOT = os.getenv("MEDIA_ROOT", BASE_DIR / "media")
+MEDIA_ROOT = os.environ.get("MEDIA_ROOT", BASE_DIR / "media")
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -124,16 +154,11 @@ LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = 'core:apply'
 LOGOUT_REDIRECT_URL = 'core:landing'
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI")
+# These safely load from your local .env file or Railway variables
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 
-
-
+# ==========================================
+# Google Drive Settings
+# ==========================================
 GOOGLE_DRIVE_FOLDER_ID = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "1UF33UO2hyCBj76vvzEZrPUcyg9w3XOwl")
-
-# This points to your new human token!
-GOOGLE_DRIVE_TOKEN_PATH = os.environ.get(
-    "GOOGLE_DRIVE_TOKEN_PATH", 
-    os.path.join(BASE_DIR, "token.json") # Looks in your project folder locally
-)

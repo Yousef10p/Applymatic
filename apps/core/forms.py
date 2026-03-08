@@ -1,9 +1,7 @@
 from django import forms
 
-
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
-
 
 class MultipleFileField(forms.FileField):
     widget = MultipleFileInput
@@ -38,17 +36,35 @@ class MultipleFileField(forms.FileField):
 
         return cleaned
 
-
 class ApplyForm(forms.Form):
-    companies_pdf = forms.FileField(required=True)
-    resume_pdf = forms.FileField(required=True)
-
-    subject = forms.CharField(required=True, max_length=200)
-    cover_letter = forms.CharField(required=True, widget=forms.Textarea(attrs={"rows": 10}))
-
-    # Extra attachments (optional) — CV is separate above
-    attachments = MultipleFileField(
-        required=False,
-        max_files=5,
-        max_file_size_mb=10,
+    companies_file = forms.FileField(
+        required=False, 
+        label="Upload Leads File",
+        help_text="Accepts .pdf, .docx, .txt, .xlsx, .csv"
     )
+    manual_leads_text = forms.CharField(
+        widget=forms.Textarea(attrs={'rows': 3, 'placeholder': 'Or paste raw text containing emails here...'}),
+        required=False,
+        label="Manual Text Entry"
+    )
+    subject = forms.CharField(max_length=255, required=True)
+    cover_letter = forms.CharField(widget=forms.Textarea(attrs={'rows': 10}), required=True)
+    resume_pdf = forms.FileField(required=True, label="Resume (PDF)")
+    
+    # FIX: Use your custom MultipleFileField here instead of standard forms.FileField
+    attachments = MultipleFileField(
+        required=False, 
+        label="Extra Attachments",
+        max_files=5, # Optional: You can now use the custom kwargs you built!
+        max_file_size_mb=10 
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        file = cleaned_data.get("companies_file")
+        text = cleaned_data.get("manual_leads_text")
+
+        # Ensure the user provides at least ONE source of leads
+        if not file and not text.strip():
+            raise forms.ValidationError("You must either upload a file or paste text containing emails.")
+        return cleaned_data

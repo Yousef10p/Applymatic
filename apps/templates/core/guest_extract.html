@@ -12,18 +12,29 @@
   .helptext { display: block; font-size: 0.875em; color: var(--bs-secondary-color); margin-top: 0.25rem; }
 </style>
 
+<script>
+  // Hide irrelevant email fields for the tester tool
+  document.addEventListener("DOMContentLoaded", function() {
+      const idsToHide = ['id_subject', 'id_cover_letter', 'id_resume_pdf', 'id_attachments'];
+      idsToHide.forEach(id => {
+          const el = document.getElementById(id);
+          if (el && el.parentElement) el.parentElement.style.display = 'none';
+      });
+  });
+</script>
+
 <div class="container pb-5">
   <div class="row justify-content-center">
     <div class="col-lg-8">
       <div class="card shadow-sm border-0 bg-body">
         <div class="card-header bg-transparent border-bottom-0 pt-4 pb-0 px-4">
-          <h2 class="h4 mb-0 fw-bold text-body">Configure Your Campaign</h2>
+          <h2 class="h4 mb-0 fw-bold text-body">Lead Extraction Tester</h2>
         </div>
         <div class="card-body p-4">
 
-          <p id="instruction-text" class="text-secondary mb-4">
-            Upload a document and write your cover letter. Your emails will be securely dispatched via Gmail.
-          </p>
+          <div class="alert alert-warning shadow-sm border-warning-subtle" role="alert">
+            <strong>Guest Mode:</strong> Upload a file or paste text to safely test our parsing engine. No emails will be sent.
+          </div>
 
           <form id="apply-form" enctype="multipart/form-data">
             {% csrf_token %}
@@ -31,22 +42,22 @@
               {{ form.as_p }}
             </div>
             <div class="d-grid">
-              <button id="submit-btn" type="submit" class="btn btn-primary btn-lg fw-bold">
-                Extract Leads & Send Campaign
+              <button id="submit-btn" type="submit" class="btn btn-warning btn-lg fw-bold text-dark">
+                Test Extraction Engine
               </button>
             </div>
           </form>
 
           <div id="loading-overlay" class="d-none text-center py-5">
-            <div id="loading-spinner" class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
-            <h4 id="loading-title" class="fw-bold text-body">Processing...</h4>
-            <p id="loading-text" class="text-secondary">Extracting data and matching names...</p>
+            <div id="loading-spinner" class="spinner-border text-warning mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
+            <h4 id="loading-title" class="fw-bold text-body">Analyzing Document...</h4>
           </div>
 
-          <div id="success-overlay" class="d-none text-center py-5">
-            <h2 class="text-success fw-bold mb-3">🎉 Campaign Complete!</h2>
-            <p id="success-text" class="lead text-secondary"></p>
-            <button onclick="window.location.href='/'" class="btn btn-primary mt-3">Return Home</button>
+          <div id="guest-results" class="d-none mt-4">
+             <h4 class="text-success fw-bold mb-3" id="guest-count"></h4>
+             <pre class="bg-dark text-success p-3 rounded overflow-auto" style="max-height: 400px; border: 1px solid #333;"><code id="guest-json"></code></pre>
+             <button onclick="window.location.reload()" class="btn btn-outline-warning text-dark mt-3">Test Another File</button>
+             <a href="/accounts/login/" class="btn btn-primary mt-3 ms-2">Log in to Send</a>
           </div>
 
         </div>
@@ -61,19 +72,15 @@
     const form = e.target;
     const submitBtn = document.getElementById('submit-btn');
     const loadingOverlay = document.getElementById('loading-overlay');
-    const loadingTitle = document.getElementById('loading-title');
-    const loadingText = document.getElementById('loading-text');
 
     submitBtn.disabled = true;
     document.getElementById('form-fields-container').classList.add('d-none');
-    document.getElementById('instruction-text').classList.add('d-none');
     submitBtn.classList.add('d-none');
     loadingOverlay.classList.remove('d-none');
 
     try {
-      // STEP 1: Extract
       let formData = new FormData(form);
-      formData.append('action', 'extract');
+      
       let extractRes = await fetch(window.location.href, {
           method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}
       });
@@ -84,25 +91,10 @@
       
       if (!extractRes.ok || extractData.error) throw new Error(extractData.error || `Extraction failed! Status: ${extractRes.status}.`);
 
-      const leadCount = extractData.count;
-      loadingTitle.innerHTML = `Found <span class="text-success">${leadCount}</span> emails!`;
-      loadingText.innerHTML = "Currently formatting and sending via Gmail API.<br><strong>Please do not close this window.</strong>";
-
-      // STEP 2: Send
-      formData.set('action', 'send');
-      let sendRes = await fetch(window.location.href, {
-          method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}
-      });
-      
-      let sendData;
-      try { sendData = await sendRes.json(); } 
-      catch (parseErr) { throw new Error(`Server crashed during Email Sending! Status: ${sendRes.status}.`); }
-      
-      if (!sendRes.ok || sendData.error) throw new Error(sendData.error || `Crash during Email Sending! Status: ${sendRes.status}.`);
-
       loadingOverlay.classList.add('d-none');
-      document.getElementById('success-overlay').classList.remove('d-none');
-      document.getElementById('success-text').innerHTML = `Successfully dispatched <strong>${sendData.sent_count}</strong> personalized emails.`;
+      document.getElementById('guest-results').classList.remove('d-none');
+      document.getElementById('guest-count').innerText = `Successfully Extracted ${extractData.count} Leads!`;
+      document.getElementById('guest-json').innerText = JSON.stringify(extractData.leads, null, 2);
 
     } catch (err) {
         alert(err.message);
