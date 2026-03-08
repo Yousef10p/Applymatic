@@ -35,9 +35,6 @@ def get_file_from_drive(service, file_id, filename):
     return fh
 # --------------------------------------
 
-# ==========================================
-# VIEW 1: AUTHENTICATED CAMPAIGN MANAGER
-# ==========================================
 def apply_view(request):
     if not request.user.is_authenticated:
         return redirect("core:landing")
@@ -56,63 +53,63 @@ def apply_view(request):
         action = request.POST.get("action")
         
         # ==========================================
-        # AI INTERCEPTORS (Bypasses Form Validation)
+        # AI INTERCEPTORS
         # ==========================================
-        if action == "generate_cover_letter":
-            resume_pdf = request.FILES.get("resume_pdf")
-            file_path = None
-            fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'temp'))
+        if action in ["generate_cover_letter", "refine_cover_letter"]:
+            # Grab the toggle status from the frontend
+            include_company = request.POST.get("include_company") == "true"
             
-            try:
-                # 1. Prioritize newly uploaded resume
-                if resume_pdf:
-                    filename = fs.save(resume_pdf.name, resume_pdf)
-                    file_path = fs.path(filename)
-                    
-                # 2. Fallback to Drive resume
-                elif drive_files:
-                    for name, f_id in drive_files.items():
-                        if name.startswith("resume"):
-                            opened_resume = get_file_from_drive(drive_service, f_id, name)
-                            filename = fs.get_available_name(name)
-                            file_path = fs.path(filename)
-                            with open(file_path, 'wb') as f:
-                                f.write(opened_resume.getvalue())
-                            opened_resume.close()
-                            break
-                            
-                if not file_path:
-                    return JsonResponse({"error": "No resume uploaded, and no previous resume found in your Google Drive."}, status=400)
-                    
-                # Extract text and send to AI
-                resume_text = extract_text_from_document(file_path)
-                from apps.AI.main import ApplymaticAI
-                ai = ApplymaticAI()
-                generated_text = ai.generate_cover_letter(resume_text)
+            if action == "generate_cover_letter":
+                resume_pdf = request.FILES.get("resume_pdf")
+                file_path = None
+                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'temp'))
                 
-                return JsonResponse({"status": "success", "cover_letter": generated_text})
-                
-            except Exception as e:
-                return JsonResponse({"error": str(e)}, status=400)
-            finally:
-                if file_path and os.path.exists(file_path):
-                    os.remove(file_path)
+                try:
+                    if resume_pdf:
+                        filename = fs.save(resume_pdf.name, resume_pdf)
+                        file_path = fs.path(filename)
+                    elif drive_files:
+                        for name, f_id in drive_files.items():
+                            if name.startswith("resume"):
+                                opened_resume = get_file_from_drive(drive_service, f_id, name)
+                                filename = fs.get_available_name(name)
+                                file_path = fs.path(filename)
+                                with open(file_path, 'wb') as f:
+                                    f.write(opened_resume.getvalue())
+                                opened_resume.close()
+                                break
+                                
+                    if not file_path:
+                        return JsonResponse({"error": "No resume uploaded, and no previous resume found in your Google Drive."}, status=400)
+                        
+                    resume_text = extract_text_from_document(file_path)
+                    from apps.AI.main import ApplymaticAI
+                    ai = ApplymaticAI()
+                    generated_text = ai.generate_cover_letter(resume_text, include_company=include_company)
                     
-        elif action == "refine_cover_letter":
-            current_text = request.POST.get("current_cover_letter", "").strip()
-            if not current_text:
-                return JsonResponse({"error": "Your cover letter is empty! Please write something or generate one first."}, status=400)
-                
-            try:
-                from apps.AI.main import ApplymaticAI
-                ai = ApplymaticAI()
-                refined_text = ai.refine_cover_letter(current_text)
-                return JsonResponse({"status": "success", "cover_letter": refined_text})
-            except Exception as e:
-                return JsonResponse({"error": str(e)}, status=400)
+                    return JsonResponse({"status": "success", "cover_letter": generated_text})
+                    
+                except Exception as e:
+                    return JsonResponse({"error": str(e)}, status=400)
+                finally:
+                    if file_path and os.path.exists(file_path):
+                        os.remove(file_path)
+                        
+            elif action == "refine_cover_letter":
+                current_text = request.POST.get("current_cover_letter", "").strip()
+                if not current_text:
+                    return JsonResponse({"error": "Your cover letter is empty! Please write something or generate one first."}, status=400)
+                    
+                try:
+                    from apps.AI.main import ApplymaticAI
+                    ai = ApplymaticAI()
+                    refined_text = ai.refine_cover_letter(current_text, include_company=include_company)
+                    return JsonResponse({"status": "success", "cover_letter": refined_text})
+                except Exception as e:
+                    return JsonResponse({"error": str(e)}, status=400)
 
         # ==========================================
-        # STANDARD FORM ACTIONS (Extract & Send)
+        # STANDARD FORM ACTIONS
         # ==========================================
         form = ApplyForm(request.POST, request.FILES)
 
@@ -120,7 +117,6 @@ def apply_view(request):
             form.fields['resume_pdf'].required = False
 
         if form.is_valid():
-            # ACTION 1: EXTRACT
             if action == "extract":
                 companies_file = request.FILES.get("companies_file")
                 manual_text = form.cleaned_data.get("manual_leads_text", "")
@@ -144,7 +140,6 @@ def apply_view(request):
                     if file_path and os.path.exists(file_path):
                         os.remove(file_path)
 
-            # ACTION 2: SEND EMAILS
             elif action == "send":
                 leads = request.session.get('extracted_leads', [])
                 if not leads:
@@ -227,9 +222,6 @@ def apply_view(request):
         "previous_resume_name": previous_resume_name, "previous_attachments_count": previous_attachments_count
     })
 
-# ==========================================
-# VIEW 2: GUEST EXTRACTION TESTER
-# ==========================================
 def guest_extract_view(request):
     if request.method == "POST":
         form = ApplyForm(request.POST, request.FILES)
