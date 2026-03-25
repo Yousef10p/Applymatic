@@ -1,105 +1,93 @@
-# Applymatic — Project README (V1)
+# Applymatic
 
-## Overview
+> **Automated job application outreach — upload your leads, extract contacts, send personalized emails.**
 
-Applymatic is a Django-based semi-automated job application engine designed to simplify large-scale outreach for CO-OP and job applications.
+Applymatic is a Django-powered web application that streamlines CO-OP and job application outreach at scale. Instead of manually hunting for company emails and crafting individual messages, Applymatic lets you upload a leads file (or paste raw text), automatically extracts email addresses and infers company names, then sends personalized cover letter emails through your own Gmail account — all in a few clicks.
 
-The system allows users to upload an unstructured PDF containing company contact information, automatically extract email addresses, infer company names, and send personalized application emails directly from their own Gmail account.
+🌐 **Live at:** [applymatic-ya.up.railway.app](https://applymatic-ya.up.railway.app/)
 
 ---
 
-## Core Features
+## Features
 
-- Upload unstructured PDF files containing company emails  
-- Automatically extract valid email addresses  
-- Infer company names from email domains  
-- Personalize cover letters using a `{company_name}` placeholder  
-- Attach resume and optional supporting documents  
-- Send emails securely through Gmail API  
-- Guest mode for testing extraction without sending emails  
-- Developer dry-run mode for safe testing  
+- 📄 **Multi-Format Lead Extraction** — Upload PDFs, Word Docs (`.docx`), Excel Sheets (`.xlsx`), or plain TXT files; Applymatic pulls out all valid email addresses automatically.
+- 📋 **Manual Text Paste** — Skip file uploads entirely and paste raw text directly into the input box to extract emails instantly.
+- 🔀 **Smart Merging** — Use a file and the text box simultaneously; Applymatic merges both sources into one consolidated lead list.
+- 🏢 **Smart Company Inference** — Company names are inferred from email domains, so you don't need a clean or formatted contact list.
+- ✉️ **Personalized Outreach** — Write your cover letter once with a `{company_name}` placeholder; Applymatic personalizes each email before sending.
+- 🤖 **AI-Powered Cover Letters** — Upload your CV and let the LLM generate a cover letter for you from scratch, or supply your own draft and have the LLM refine and improve it — your choice.
+- 📎 **Resume & Attachment Support** — Attach your resume and any supporting documents to every outgoing email.
+- 🔐 **Google OAuth 2.0 Login** — Sign in with Google; emails are sent directly through your own Gmail account via the Gmail API — no third-party SMTP required.
+- 👤 **Guest Mode** — Try the extraction and lead preview without signing in or sending any emails.
 
 ---
 
 ## Tech Stack
 
-- **Backend:** Django 5.x  
-- **Language:** Python 3.13  
-- **Database:** SQLite (development)  
-- **Frontend:** Django Templates + Bootstrap 5  
-- **PDF Parsing:** pdfplumber  
-- **Domain Parsing:** tldextract  
-- **Email Sending:** Gmail API  
+| Layer | Technology |
+|---|---|
+| Backend Framework | Django 5.x |
+| Language | Python 3.13 |
+| Database (dev) | SQLite |
+| Database (prod) | PostgreSQL |
+| Frontend | HTML + Bootstrap 5 + JS |
+| Email Sending | Gmail API (OAuth 2.0) |
+| Background Tasks | Celery + Redis |
+| Auth | Google OAuth 2.0 |
 
 ---
 
-## Authentication
+## Project Structure
 
-Applymatic uses **Google OAuth 2.0** instead of traditional passwords.
-
-- Users log in with Google  
-- Gmail send permission is required  
-- Access and refresh tokens are securely stored  
-- Logout is handled via POST for CSRF protection  
+```
+Applymatic/
+├── applymatic/           # Django project config (settings, urls, wsgi)
+├── apps/
+│   ├── accounts/         # Google OAuth login, user model, token storage
+│   ├── core/             # File upload, email extraction, sending logic
+│   ├── applications/     # (planned) Application tracking
+│   └── companies/        # (planned) Company management
+├── templates/            # HTML templates
+├── media/                # Uploaded resumes and attachments
+├── manage.py
+├── requirements.txt
+└── .gitignore
+```
 
 ---
 
 ## How It Works
 
-1. User logs in with Google (or continues as Guest).
-2. User uploads a PDF containing company contact emails.
-3. The system extracts emails and infers company names.
-4. User provides subject line, cover letter, and resume.
-5. Emails are personalized and sent through Gmail API.
-6. A results page confirms how many emails were processed or sent.
+```
+1. Login with Google         →  Gmail send permission granted
+2. Upload file / paste text  →  Emails extracted, company names inferred
+3. Cover letter              →  Generate from your CV using AI, write manually,
+                                or paste a draft and let AI refine it
+4. Attach resume             →  Optional supporting documents too
+5. Send                      →  Personalized emails dispatched via Gmail API
+6. Results page              →  See how many emails were sent / processed
+```
 
 ---
 
 ## Guest Mode
 
-Guest users can:
-
-- Upload and parse PDFs  
-- View extracted leads  
-
-Guest users cannot:
-
-- Send emails  
-- Upload resumes or attachments  
+Guests can upload files or paste text and preview extracted leads — no account or email sending required. To actually send emails, sign in with Google.
 
 ---
 
-## Developer Mode
+## 🤝 Contributing
 
-A configuration toggle allows:
-
-- Dry-run testing (no real emails sent)  
-- Console preview of personalized messages  
-- Safe local development  
+Contributions are welcome! Feel free to open an issue or submit a pull request.
 
 ---
 
-## Project Structure
-```
-applymatic/
-├── config/
-├── apps/
-│ ├── accounts/
-│ ├── core/
-│ ├── applications/ (future)
-│ ├── companies/ (future)
-├── media/
-├── templates/
-```
+## Author
 
+Built by **Yousef** — [Connect on LinkedIn](https://www.linkedin.com/in/yousef-alogiely-29389b283/)
 
 ---
 
-## Purpose
+> Built to streamline outreach. Designed for scalability.
 
-Applymatic reduces repetitive manual emailing during job applications by automating extraction and personalized outreach — while keeping users in control of their own email account.
 
----
-
-Built to streamline outreach.  
-Designed for scalability.
