@@ -6,6 +6,7 @@ app_name = "accounts"
 
 urlpatterns = [
     path("login/", google_login, name="login"),
-    path("google/callback/", google_callback, name="callback"),
+    # Add 'login/' right here so it matches Google perfectly!
+    path("google/login/callback/", google_callback, name="callback"),
     path("logout/", LogoutView.as_view(), name="logout"),
 ]
